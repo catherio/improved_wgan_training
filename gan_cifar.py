@@ -16,12 +16,18 @@ import tflib.cifar10
 import tflib.inception_score
 import tflib.plot
 
-# Download CIFAR-10 (Python version) at
-# https://www.cs.toronto.edu/~kriz/cifar.html and fill in the path to the
-# extracted files here!
 DATA_DIR = ''
 if len(DATA_DIR) == 0:
-    raise Exception('Please specify path to data directory in gan_cifar.py!')
+    raise Exception('''
+Please specify path to data directory in gan_cifar.py!
+
+Download CIFAR-10 (Python version) at
+https://www.cs.toronto.edu/~kriz/cifar.html and fill in the path to the
+extracted files.
+
+> wget https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz
+> tar -xvzf cifar-10-python.tar.gz
+''')
 
 MODE = 'wgan-gp' # Valid options are dcgan, wgan, or wgan-gp
 DIM = 128 # This overfits substantially; you're probably better off with 64
@@ -110,7 +116,7 @@ if MODE == 'wgan':
         clip_bounds = [-.01, .01]
         clip_ops.append(
             tf.assign(
-                var, 
+                var,
                 tf.clip_by_value(var, clip_bounds[0], clip_bounds[1])
             )
         )
@@ -123,7 +129,7 @@ elif MODE == 'wgan-gp':
 
     # Gradient penalty
     alpha = tf.random_uniform(
-        shape=[BATCH_SIZE,1], 
+        shape=[BATCH_SIZE,1],
         minval=0.,
         maxval=1.
     )
@@ -207,7 +213,7 @@ with tf.Session() as session:
         if iteration % 100 == 99:
             dev_disc_costs = []
             for images,_ in dev_gen():
-                _dev_disc_cost = session.run(disc_cost, feed_dict={real_data_int: images}) 
+                _dev_disc_cost = session.run(disc_cost, feed_dict={real_data_int: images})
                 dev_disc_costs.append(_dev_disc_cost)
             lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
             generate_image(iteration, _data)

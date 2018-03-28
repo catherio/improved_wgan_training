@@ -20,7 +20,7 @@ MODEL_DIR = '/tmp/imagenet'
 DATA_URL = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz'
 softmax = None
 
-# Call this function with list of images. Each of elements should be a 
+# Call this function with list of images. Each of elements should be a
 # numpy array with values ranging from 0 to 255.
 def get_inception_score(images, splits=10):
   assert(type(images) == list)
@@ -88,9 +88,9 @@ def _init_inception():
                     new_shape.append(None)
                 else:
                     new_shape.append(s)
-            o._shape = tf.TensorShape(new_shape)
+            o.set_shape(tf.TensorShape(new_shape))
     w = sess.graph.get_operation_by_name("softmax/logits/MatMul").inputs[1]
-    logits = tf.matmul(tf.squeeze(pool3), w)
+    logits = tf.matmul(tf.squeeze(pool3, [1, 2]), w)
     softmax = tf.nn.softmax(logits)
 
 if softmax is None:
