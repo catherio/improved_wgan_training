@@ -16,7 +16,7 @@ import tflib.cifar10
 import tflib.inception_score
 import tflib.plot
 
-DATA_DIR = ''
+DATA_DIR = '/home/catherio/data/cifar10/cifar-10-batches-py/'
 if len(DATA_DIR) == 0:
     raise Exception('''
 Please specify path to data directory in gan_cifar.py!
@@ -29,6 +29,7 @@ extracted files.
 > tar -xvzf cifar-10-python.tar.gz
 ''')
 
+DATASET = 'cifar' # (experimental) 'cifar' or 'svhn'
 MODE = 'wgan-gp' # Valid options are dcgan, wgan, or wgan-gp
 DIM = 128 # This overfits substantially; you're probably better off with 64
 LAMBDA = 10 # Gradient penalty lambda hyperparameter
@@ -173,17 +174,37 @@ def get_inception_score():
     all_samples = all_samples.reshape((-1, 3, 32, 32)).transpose(0,2,3,1)
     return lib.inception_score.get_inception_score(list(all_samples))
 
-# Dataset iterators
-train_gen, dev_gen = lib.cifar10.load(BATCH_SIZE, data_dir=DATA_DIR)
-def inf_train_gen():
-    while True:
-        for images,_ in train_gen():
-            yield images
 
 # Train loop
 with tf.Session() as session:
+    # Dataset iterators
+    if DATASET == 'cifar':
+        train_gen, dev_gen = lib.cifar10.load(BATCH_SIZE, data_dir=DATA_DIR)
+        def inf_gen(g):
+            while True:
+                for ims,_ in g:
+                    yield ims
+        train_gen = inf_gen(train_gen())
+        dev_gen = inf_gen(dev_gen())
+    elif DATASET == 'svhn':
+        from ganskill.svhn_data import input_fn
+        train_gen_tf = (input_fn(is_training=True,
+                                 batch_size=BATCH_SIZE)
+                        .make_one_shot_iterator())
+        dev_gen_tf = (input_fn(is_training=False,
+                               batch_size=BATCH_SIZE)
+                      .make_one_shot_iterator())
+
+        def dataset_iter(g_tf):
+            next_im, _ = g_tf.get_next()
+            reshape = tf.reshape(next_im, [-1, OUTPUT_DIM])
+            while True:
+                yield session.run(reshape)
+        train_gen = dataset_iter(train_gen_tf)
+        dev_gen = dataset_iter(dev_gen_tf)
+
     session.run(tf.initialize_all_variables())
-    gen = inf_train_gen()
+
 
     for iteration in xrange(ITERS):
         start_time = time.time()
@@ -196,7 +217,7 @@ with tf.Session() as session:
         else:
             disc_iters = CRITIC_ITERS
         for i in xrange(disc_iters):
-            _data = gen.next()
+            _data = train_gen.next()
             _disc_cost, _ = session.run([disc_cost, disc_train_op], feed_dict={real_data_int: _data})
             if MODE == 'wgan':
                 _ = session.run(clip_disc_weights)
@@ -212,7 +233,7 @@ with tf.Session() as session:
         # Calculate dev loss and generate samples every 100 iters
         if iteration % 100 == 99:
             dev_disc_costs = []
-            for images,_ in dev_gen():
+            for images in dev_gen:
                 _dev_disc_cost = session.run(disc_cost, feed_dict={real_data_int: images})
                 dev_disc_costs.append(_dev_disc_cost)
             lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
