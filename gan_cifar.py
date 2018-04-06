@@ -23,8 +23,8 @@ DATA_DIR = '/home/catherio/data/cifar10/cifar-10-batches-py/'
 if len(DATA_DIR) == 0:
     raise Exception('Please specify path to data directory in gan_cifar.py!')
 
-MODE = 'wgan-gp' # Valid options are dcgan, wgan, or wgan-gp
-DIM = 128 # This overfits substantially; you're probably better off with 64
+MODE = 'dcgan' # Valid options are dcgan, wgan, or wgan-gp
+DIM = 64 # 128 overfits substantially; you're probably better off with 64
 LAMBDA = 10 # Gradient penalty lambda hyperparameter
 CRITIC_ITERS = 5 # How many critic iterations per generator iteration
 BATCH_SIZE = 64 # Batch size
@@ -110,7 +110,7 @@ if MODE == 'wgan':
         clip_bounds = [-.01, .01]
         clip_ops.append(
             tf.assign(
-                var, 
+                var,
                 tf.clip_by_value(var, clip_bounds[0], clip_bounds[1])
             )
         )
@@ -123,7 +123,7 @@ elif MODE == 'wgan-gp':
 
     # Gradient penalty
     alpha = tf.random_uniform(
-        shape=[BATCH_SIZE,1], 
+        shape=[BATCH_SIZE,1],
         minval=0.,
         maxval=1.
     )
@@ -138,9 +138,12 @@ elif MODE == 'wgan-gp':
     disc_train_op = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0.5, beta2=0.9).minimize(disc_cost, var_list=disc_params)
 
 elif MODE == 'dcgan':
-    gen_cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(disc_fake, tf.ones_like(disc_fake)))
-    disc_cost =  tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(disc_fake, tf.zeros_like(disc_fake)))
-    disc_cost += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(disc_real, tf.ones_like(disc_real)))
+    gen_cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+        logits=disc_fake, labels=tf.ones_like(disc_fake)))
+    disc_cost =  tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+        logits=disc_fake, labels=tf.zeros_like(disc_fake)))
+    disc_cost += tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+        logits=disc_real, labels=tf.ones_like(disc_real)))
     disc_cost /= 2.
 
     gen_train_op = tf.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(gen_cost,
@@ -148,13 +151,21 @@ elif MODE == 'dcgan':
     disc_train_op = tf.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(disc_cost,
                                                                                    var_list=lib.params_with_name('Discriminator.'))
 
+
+# For tensorboard
+lib.plot.set_writer(tf.summary.FileWriter(lib.plot.full_tb_path()))
+
 # For generating samples
 fixed_noise_128 = tf.constant(np.random.normal(size=(128, 128)).astype('float32'))
 fixed_noise_samples_128 = Generator(128, noise=fixed_noise_128)
 def generate_image(frame, true_dist):
     samples = session.run(fixed_noise_samples_128)
     samples = ((samples+1.)*(255./2)).astype('int32')
-    lib.save_images.save_images(samples.reshape((128, 3, 32, 32)), 'samples_{}.jpg'.format(frame))
+    lib.save_images.save_images(
+        samples.reshape((128, 3, 32, 32)),
+        os.path.join(lib.plot.default_folder(),
+                     lib.plot.default_experiment(),
+                     'samples_{}.jpg'.format(frame)))
 
 # For calculating inception score
 samples_100 = Generator(100)
@@ -207,7 +218,7 @@ with tf.Session() as session:
         if iteration % 100 == 99:
             dev_disc_costs = []
             for images,_ in dev_gen():
-                _dev_disc_cost = session.run(disc_cost, feed_dict={real_data_int: images}) 
+                _dev_disc_cost = session.run(disc_cost, feed_dict={real_data_int: images})
                 dev_disc_costs.append(_dev_disc_cost)
             lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
             generate_image(iteration, _data)
