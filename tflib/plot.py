@@ -16,6 +16,7 @@ import tensorflow as tf
 _since_beginning = collections.defaultdict(lambda: {})
 _since_last_flush = collections.defaultdict(lambda: {})
 _writer = None
+_last_names = []
 
 _iter = [0]
 def tick():
@@ -25,10 +26,20 @@ def plot(name, value):
 	_since_last_flush[name][_iter[0]] = value
 
 def flush():
-	prints = []
+	print_vals = [_iter[0]]
+
+	names = list(_since_last_flush.keys())
+	row_format_s = "{:^10}" + " | {:^16}" * len(names)
+	row_format = "{:^10}" + " | {:^16.1e}" * len(names)
+
+	if _last_names != names:
+		headers = ["Iteration"] + names
+		print(row_format_s.format(*headers))
+		print("=" * (10 + 18*len(names)))
+		_last_names[:] = names
 
 	for name, vals in _since_last_flush.items():
-		prints.append("{}\t{}".format(name, np.mean(vals.values())))
+		print_vals.append(np.mean(vals.values()))
 		_since_beginning[name].update(vals)
 
 		x_vals = np.sort(_since_beginning[name].keys())
@@ -41,7 +52,7 @@ def flush():
 		pltname = name.replace(' ', '_')+'.jpg'
 		plt.savefig(os.path.join(default_folder(), default_experiment(), pltname))
 
-	print("iter {}\t\t{}".format(_iter[0], "\t\t".join(prints)))
+	print(row_format.format(*print_vals))
 
 	logfile = os.path.join(default_folder(), default_experiment(), 'log.pkl')
 	with open(logfile, 'wb') as f:
@@ -58,10 +69,10 @@ def flush():
 	_since_last_flush.clear()
 
 
-def set_writer(writer):
+def set_writer(path):
   global _writer
-  _writer = writer
-
+  _writer = tf.summary.FileWriter(path)
+  print('Writing to {}'.format(path))
 
 START_TIME = datetime.datetime.now(pytz.timezone('US/Pacific'))
 

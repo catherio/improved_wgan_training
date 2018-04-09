@@ -153,7 +153,7 @@ elif MODE == 'dcgan':
 
 
 # For tensorboard
-lib.plot.set_writer(tf.summary.FileWriter(lib.plot.full_tb_path()))
+lib.plot.set_writer(lib.plot.full_tb_path())
 
 # For generating samples
 fixed_noise_128 = tf.constant(np.random.normal(size=(128, 128)).astype('float32'))
@@ -177,6 +177,13 @@ def get_inception_score():
     all_samples = ((all_samples+1.)*(255./2)).astype('int32')
     all_samples = all_samples.reshape((-1, 3, 32, 32)).transpose(0,2,3,1)
     return lib.inception_score.get_inception_score(list(all_samples))
+
+# Diagnostic measurements
+grad_g_loss_wrt_g_output = tf.reduce_mean(tf.norm(tf.gradients(
+  gen_cost, fake_data)))
+grad_g_loss_wrt_logits = tf.reduce_mean(tf.norm(tf.gradients(
+  gen_cost, disc_fake)))
+
 
 # Dataset iterators
 train_gen, dev_gen = lib.cifar10.load(BATCH_SIZE, data_dir=DATA_DIR)
@@ -222,6 +229,11 @@ with tf.Session() as session:
                 dev_disc_costs.append(_dev_disc_cost)
             lib.plot.plot('dev disc cost', np.mean(dev_disc_costs))
             generate_image(iteration, _data)
+
+            lib.plot.plot('g_loss_wrt_output',
+                          session.run(grad_g_loss_wrt_g_output))
+            lib.plot.plot('g_loss_wrt_logits',
+                          session.run(grad_g_loss_wrt_logits))
 
         # Save logs every 100 iters
         if (iteration < 5) or (iteration % 100 == 99):
